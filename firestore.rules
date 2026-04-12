@@ -1,0 +1,226 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - email: string (required, format: email)
+    //   - role: string (required, enum: ['admin', 'staff', 'recycler'])
+    //
+    // Collection: bins
+    // Document ID: binId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - location: string (required)
+    //   - capacity: number (required)
+    //   - current_count: number (required)
+    //   - qr_code: string (required)
+    //   - status: string (required, enum: ['active', 'awaiting-pickup'])
+    //   - assigned_recycler_id: string (required)
+    //   - last_updated: string (required, format: date-time)
+    //
+    // Collection: pickups
+    // Document ID: pickupId
+    // Fields:
+    //   - id: string (required)
+    //   - bin_id: string (required)
+    //   - recycler_id: string (required)
+    //   - request_time: string (required, format: date-time)
+    //   - estimated_weight: number (required)
+    //   - estimated_payment: number (required)
+    //   - status: string (required, enum: ['pending', 'completed'])
+    //   - completed_at: string (optional, format: date-time)
+    //   - requester_id: string (optional)
+    //   - notes: string (optional)
+    //   - items: list (optional)
+    //
+    // Collection: payments
+    // Document ID: paymentId
+    // Fields:
+    //   - id: string (required)
+    //   - pickup_id: string (required)
+    //   - amount: number (required)
+    //   - paid_at: string (required, format: date-time)
+    //
+    // Collection: scanLogs
+    // Document ID: logId
+    // Fields:
+    //   - id: string (required)
+    //   - bin_id: string (required)
+    //   - item_type: string (required)
+    //   - quantity: number (required)
+    //   - user_id: string (required)
+    //   - created_at: string (required, format: date-time)
+    //
+    // Collection: settings
+    // Document ID: config
+    // Fields:
+    //   - collegeName: string (required)
+    //   - adminEmail: string (required, format: email)
+    //   - itemPrices: list (required)
+    //
+    // Collection: binIssues
+    // Document ID: issueId
+    // Fields:
+    //   - id: string (required)
+    //   - bin_id: string (required)
+    //   - reporter_id: string (required)
+    //   - issue_type: string (required, enum: ['damage', 'overflow', 'misplaced', 'other'])
+    //   - description: string (required)
+    //   - status: string (required, enum: ['pending', 'resolved'])
+    //   - timestamp: string (required, format: date-time)
+    //
+    // Collection: messages
+    // Document ID: messageId
+    // Fields:
+    //   - id: string (required)
+    //   - pickup_id: string (required)
+    //   - sender_id: string (required)
+    //   - sender_role: string (required, enum: ['staff', 'recycler'])
+    //   - content: string (required)
+    //   - timestamp: string (required, format: date-time)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         (request.auth.token.email == "mddilshadmgr09@gmail.com" && request.auth.token.email_verified == true) ||
+         (request.auth.token.email == "admin@campus.edu") ||
+         (request.auth.token.email == "admin@ewaste.com"));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['id', 'name', 'email', 'role']) &&
+             hasOnlyAllowedFields(['id', 'name', 'email', 'role', 'last_login']) &&
+             data.id is string && data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'staff', 'recycler'];
+    }
+
+    function isValidBin(data) {
+      return hasRequiredFields(['id', 'name', 'location', 'capacity', 'current_count', 'qr_code', 'status', 'assigned_recycler_id', 'last_updated']) &&
+             hasOnlyAllowedFields(['id', 'name', 'location', 'capacity', 'current_count', 'qr_code', 'status', 'assigned_recycler_id', 'last_updated']) &&
+             data.id is string && data.name is string && data.location is string &&
+             data.capacity is number && data.capacity > 0 &&
+             data.current_count is number && data.current_count >= 0 &&
+             data.qr_code is string &&
+             data.status in ['active', 'awaiting-pickup'] &&
+             data.assigned_recycler_id is string &&
+             isValidDateString(data.last_updated);
+    }
+
+    function isValidPickup(data) {
+      return hasRequiredFields(['id', 'bin_id', 'recycler_id', 'request_time', 'estimated_weight', 'estimated_payment', 'status']) &&
+             data.id is string && data.bin_id is string && data.recycler_id is string &&
+             isValidDateString(data.request_time) &&
+             data.estimated_weight is number && data.estimated_weight >= 0 &&
+             data.estimated_payment is number && data.estimated_payment >= 0 &&
+             data.status in ['pending', 'accepted', 'completed', 'canceled'];
+    }
+
+    function isValidIssue(data) {
+      return hasRequiredFields(['id', 'bin_id', 'reporter_id', 'issue_type', 'description', 'status', 'timestamp']) &&
+             data.id is string && data.bin_id is string && data.reporter_id is string &&
+             data.issue_type in ['damage', 'overflow', 'misplaced', 'other'] &&
+             data.description is string && data.description.size() > 0 &&
+             data.status in ['pending', 'resolved'] &&
+             isValidDateString(data.timestamp);
+    }
+
+    function isValidMessage(data) {
+      return hasRequiredFields(['id', 'pickup_id', 'sender_id', 'sender_role', 'content', 'timestamp']) &&
+             data.id is string && data.pickup_id is string && data.sender_id is string &&
+             data.sender_role in ['staff', 'recycler'] &&
+             data.content is string && data.content.size() > 0 &&
+             isValidDateString(data.timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true; // Temporary for anonymous login setup
+    }
+
+    match /bins/{binId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /pickups/{pickupId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /scanLogs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /binIssues/{issueId} {
+      allow read: if true;
+      allow create: if isValidIssue(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read: if true;
+      allow create: if isValidMessage(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /settings/config {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

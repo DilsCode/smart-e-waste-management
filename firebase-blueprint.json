@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the e-waste management system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the user (UID)." },
+        "name": { "type": "string", "description": "Full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "Email address of the user." },
+        "role": { "type": "string", "enum": ["admin", "staff", "recycler"], "description": "The role of the user." }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Bin": {
+      "title": "Bin",
+      "description": "An e-waste collection bin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the bin." },
+        "name": { "type": "string", "description": "Name or label of the bin." },
+        "location": { "type": "string", "description": "Physical location of the bin." },
+        "capacity": { "type": "number", "description": "Maximum item capacity of the bin." },
+        "current_count": { "type": "number", "description": "Current number of items in the bin." },
+        "qr_code": { "type": "string", "description": "QR code string for the bin." },
+        "status": { "type": "string", "enum": ["active", "awaiting-pickup"], "description": "Current status of the bin." },
+        "assigned_recycler_id": { "type": "string", "description": "UID of the recycler assigned to this bin." },
+        "last_updated": { "type": "string", "format": "date-time", "description": "Last time the bin status was updated." }
+      },
+      "required": ["id", "name", "location", "capacity", "current_count", "qr_code", "status", "assigned_recycler_id", "last_updated"]
+    },
+    "Pickup": {
+      "title": "Pickup",
+      "description": "A request for e-waste collection from a bin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the pickup request." },
+        "bin_id": { "type": "string", "description": "ID of the bin to be collected." },
+        "recycler_id": { "type": "string", "description": "UID of the recycler assigned to the pickup." },
+        "request_time": { "type": "string", "format": "date-time", "description": "When the pickup was requested." },
+        "estimated_weight": { "type": "number", "description": "Estimated weight of the e-waste in kg." },
+        "estimated_payment": { "type": "number", "description": "Estimated payment for the collection in INR." },
+        "status": { "type": "string", "enum": ["pending", "completed"], "description": "Current status of the pickup." },
+        "completed_at": { "type": "string", "format": "date-time", "description": "When the pickup was completed." },
+        "requester_id": { "type": "string", "description": "UID of the user who requested the pickup (null if auto-triggered)." },
+        "notes": { "type": "string", "description": "Additional notes for the pickup." },
+        "items": { 
+          "type": "array", 
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "quantity": { "type": "number" }
+            }
+          },
+          "description": "List of items in the pickup." 
+        }
+      },
+      "required": ["id", "bin_id", "recycler_id", "request_time", "estimated_weight", "estimated_payment", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "A payment record for a completed pickup.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the payment." },
+        "pickup_id": { "type": "string", "description": "ID of the associated pickup." },
+        "amount": { "type": "number", "description": "Amount paid in INR." },
+        "paid_at": { "type": "string", "format": "date-time", "description": "When the payment was made." }
+      },
+      "required": ["id", "pickup_id", "amount", "paid_at"]
+    },
+    "ScanLog": {
+      "title": "ScanLog",
+      "description": "A log of an e-waste item being scanned into a bin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the scan log." },
+        "bin_id": { "type": "string", "description": "ID of the bin scanned." },
+        "item_type": { "type": "string", "description": "Type of e-waste item scanned." },
+        "quantity": { "type": "number", "description": "Number of items scanned." },
+        "user_id": { "type": "string", "description": "UID of the user who scanned the item." },
+        "created_at": { "type": "string", "format": "date-time", "description": "When the scan occurred." }
+      },
+      "required": ["id", "bin_id", "item_type", "quantity", "user_id", "created_at"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application settings.",
+      "type": "object",
+      "properties": {
+        "collegeName": { "type": "string", "description": "Name of the college/campus." },
+        "adminEmail": { "type": "string", "format": "email", "description": "Primary administrator email." },
+        "itemPrices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "price_per_kg": { "type": "number" },
+              "weight_kg": { "type": "number" }
+            }
+          },
+          "description": "Pricing and weight configuration for e-waste items."
+        }
+      },
+      "required": ["collegeName", "adminEmail", "itemPrices"]
+    },
+    "BinIssue": {
+      "title": "BinIssue",
+      "description": "A reported issue with a bin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bin_id": { "type": "string" },
+        "reporter_id": { "type": "string" },
+        "issue_type": { "type": "string", "enum": ["damage", "overflow", "misplaced", "other"] },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "bin_id", "reporter_id", "issue_type", "description", "status", "timestamp"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A message in a pickup-related chat.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "pickup_id": { "type": "string" },
+        "sender_id": { "type": "string" },
+        "sender_role": { "type": "string", "enum": ["staff", "recycler"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pickup_id", "sender_id", "sender_role", "content", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profiles." },
+    "/bins/{binId}": { "schema": "Bin", "description": "Collection bins." },
+    "/pickups/{pickupId}": { "schema": "Pickup", "description": "Pickup requests." },
+    "/payments/{paymentId}": { "schema": "Payment", "description": "Payment records." },
+    "/scanLogs/{logId}": { "schema": "ScanLog", "description": "Item scan history." },
+    "/binIssues/{issueId}": { "schema": "BinIssue", "description": "Reported bin issues." },
+    "/messages/{messageId}": { "schema": "ChatMessage", "description": "Chat messages." },
+    "/settings/config": { "schema": "Settings", "description": "Global configuration." }
+  }
+}

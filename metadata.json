@@ -1,0 +1,9 @@
+{
+  "name": "EcoConnect: Advanced E-Waste Management & Analytics System",
+  "description": "An enterprise-grade e-waste lifecycle management platform with real-time analytics, environmental impact tracking, and gamified recycling incentives for large-scale campuses.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
