@@ -36,14 +36,17 @@ const AIDisposalAssistant = () => {
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const chat = ai.chats.create({
+      
+      const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
+        contents: [
+          { role: 'user', parts: [{ text: userMessage }] }
+        ],
         config: {
           systemInstruction: "You are an expert E-Waste Disposal Assistant for a college campus. Provide safe, accurate, and concise advice on how to categorize, handle, and recycle electronic waste. If an item is hazardous (like bloated batteries), emphasize safety first. Keep responses professional and helpful.",
-        },
+        }
       });
 
-      const response = await chat.sendMessage({ message: userMessage });
       const responseText = response.text || "I'm sorry, I couldn't generate a response. Please try again.";
       setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
     } catch (err) {

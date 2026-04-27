@@ -5,21 +5,27 @@ import { Role } from '../types';
 import AdminView from './admin/AdminView';
 import StaffView from './staff/StaffView';
 import RecyclerView from './recycler/RecyclerView';
+import PresentationMode from './admin/pages/PresentationMode';
 import { 
     MenuIcon, CloseIcon, LogoIcon
 } from './shared/Icons';
-import { LogOut } from 'lucide-react';
+import { LogOut, Presentation } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const Dashboard = () => {
     const { state, logout } = useData();
     const currentUser = state?.currentUser;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [showPresentation, setShowPresentation] = useState(false);
 
     if (!currentUser) return null;
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
+            <AnimatePresence>
+                {showPresentation && <PresentationMode onClose={() => setShowPresentation(false)} />}
+            </AnimatePresence>
+
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-100 dark:border-gray-800">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -37,6 +43,14 @@ const Dashboard = () => {
 
                         {/* Desktop Navigation Info */}
                         <div className="hidden md:flex items-center space-x-8">
+                            <button 
+                                onClick={() => setShowPresentation(true)}
+                                className="flex items-center space-x-2 px-4 py-2 bg-emerald-500/10 text-emerald-600 font-bold rounded-xl border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                            >
+                                <Presentation className="w-4 h-4" />
+                                <span className="text-sm">Project Demo</span>
+                            </button>
+
                             <div className="flex items-center space-x-4 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
                                 <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-500/10">
                                     {currentUser.name.charAt(0)}

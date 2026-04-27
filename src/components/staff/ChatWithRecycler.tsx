@@ -1,7 +1,7 @@
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../../context/DataContext';
-import { MessageSquare, Send, Recycle, Clock } from 'lucide-react';
+import { MessageSquare, Send, Recycle, CheckCheck } from 'lucide-react';
 
 const ChatWithRecycler = () => {
   const { state, sendMessage } = useData();
@@ -9,11 +9,35 @@ const ChatWithRecycler = () => {
   
   const [selectedPickupId, setSelectedPickupId] = useState<string | null>(null);
   const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const getRecyclerName = (pickupId: string) => {
+    if (pickupId === 'general_coordination') return 'General Support';
+    const pickup = pickups.find(p => p.id === pickupId);
+    if (!pickup) return 'Recycler';
+    const recycler = users.find(u => u.id === pickup.recycler_id);
+    return recycler?.name || 'Recycler Partner';
+  };
 
   const activePickups = useMemo(() => {
     if (!currentUser) return [];
-    return pickups.filter(p => p.requester_id === currentUser.id && (p.status === 'accepted' || p.status === 'pending'));
+    // Show all active pickups for the campus so any staff can coordinate
+    return pickups.filter(p => p.status === 'accepted' || p.status === 'pending');
   }, [pickups, currentUser]);
+
+  const chatList = useMemo(() => {
+    const base = activePickups.map(p => ({
+      id: p.id,
+      name: getRecyclerName(p.id),
+      subtext: `ID: ${p.id}`,
+      type: 'pickup'
+    }));
+
+    return [
+      { id: 'general_coordination', name: 'General Support', subtext: 'Coordination Channel', type: 'general' },
+      ...base
+    ];
+  }, [activePickups]);
 
   const currentMessages = useMemo(() => {
     if (!selectedPickupId) return [];
@@ -21,6 +45,14 @@ const ChatWithRecycler = () => {
       .filter(m => m.pickup_id === selectedPickupId)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [messages, selectedPickupId]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [currentMessages]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,100 +68,156 @@ const ChatWithRecycler = () => {
     setInput('');
   };
 
-  const getRecyclerName = (pickupId: string) => {
-    const pickup = pickups.find(p => p.id === pickupId);
-    if (!pickup) return 'Recycler';
-    const recycler = users.find(u => u.id === pickup.recycler_id);
-    return recycler?.name || 'Recycler Partner';
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[600px]">
-      {/* Pickup List */}
-      <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
-        <div className="p-6 border-b dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
-          <h3 className="font-bold text-gray-900 dark:text-white flex items-center">
-            <Clock className="w-5 h-5 mr-2 text-emerald-500" />
-            Active Pickups
-          </h3>
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[650px] bg-gray-50 dark:bg-gray-950 p-2 rounded-[2.5rem]">
+      {/* Pickup List / Sidebar */}
+      <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-[2rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col">
+        <div className="p-6 border-b dark:border-gray-800 bg-white dark:bg-gray-900 sticky top-0 z-10">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Active Recyclers</h3>
+            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <Recycle className="w-4 h-4 text-emerald-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500">Coordinate collection details</p>
         </div>
-        <div className="flex-grow overflow-y-auto p-4 space-y-3">
-          {activePickups.length > 0 ? activePickups.map(pickup => (
-            <button
-              key={pickup.id}
-              onClick={() => setSelectedPickupId(pickup.id)}
-              className={`w-full p-4 rounded-2xl text-left transition-all border ${
-                selectedPickupId === pickup.id 
-                  ? 'bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20' 
-                  : 'bg-gray-50 dark:bg-gray-900/50 text-gray-600 dark:text-gray-400 border-transparent hover:bg-gray-100'
-              }`}
-            >
-              <div className="font-bold truncate">{getRecyclerName(pickup.id)}</div>
-              <div className="text-[10px] opacity-70 uppercase tracking-widest mt-1">ID: {pickup.id}</div>
-              <div className={`mt-2 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                pickup.status === 'accepted' ? 'bg-white/20' : 'bg-amber-500/20 text-amber-500'
-              }`}>
-                {pickup.status}
+
+        <div className="flex-grow overflow-y-auto p-3 space-y-2 custom-scrollbar">
+          {chatList.map(item => {
+            const isSelected = selectedPickupId === item.id;
+            const lastMsg = messages.filter(m => m.pickup_id === item.id).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => setSelectedPickupId(item.id)}
+                className={`w-full p-4 rounded-[1.5rem] text-left transition-all relative ${
+                  isSelected 
+                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <div className="flex items-center justify-between space-x-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold flex-shrink-0 ${
+                    isSelected ? 'bg-white/20' : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600'
+                  }`}>
+                    {item.name.charAt(0)}
+                  </div>
+                  <div className="flex-grow overflow-hidden">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-sm truncate">{item.name}</span>
+                      {lastMsg && (
+                        <span className={`text-[9px] ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
+                          {new Date(lastMsg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-[10px] mt-0.5 truncate ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                      {lastMsg ? lastMsg.content : item.subtext}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {chatList.length === 0 && (
+            <div className="text-center py-10 px-4">
+              <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                <Recycle className="w-8 h-8 text-gray-300" />
               </div>
-            </button>
-          )) : (
-            <div className="text-center py-10 text-gray-400">
-              <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-20" />
-              <p className="text-sm">No active pickups to chat about.</p>
+              <p className="text-xs text-gray-500 font-medium">No active pickups for chat. Messages will appear when a pickup is requested.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col">
+      {/* Main Chat Interface */}
+      <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-[2rem] shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden flex flex-col relative">
+        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-repeat"></div>
+        
         {selectedPickupId ? (
           <>
-            <div className="p-6 border-b dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-900/50">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white">
+            {/* Chat Header */}
+            <div className="px-6 py-4 border-b dark:border-gray-800 flex items-center justify-between bg-white/80 dark:bg-gray-900/80 backdrop-blur-md z-10">
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
                   <Recycle className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">{getRecyclerName(selectedPickupId)}</h3>
-                  <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Recycler Partner</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white leading-tight">{getRecyclerName(selectedPickupId)}</h3>
+                  <div className="flex items-center mt-1">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-2"></div>
+                    <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest leading-none">Recycler Partner • Active</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex-grow overflow-y-auto p-6 space-y-4">
-              {currentMessages.map((msg) => {
-                const isMe = msg.sender_id === currentUser?.id;
-                return (
-                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-4 rounded-2xl ${
-                      isMe 
-                        ? 'bg-emerald-500 text-white rounded-tr-none shadow-lg shadow-emerald-500/10' 
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-tl-none'
-                    }`}>
-                      <p className="text-sm">{msg.content}</p>
-                      <p className={`text-[9px] mt-1 opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
+            {/* Messages Area */}
+            <div className="flex-grow overflow-y-auto p-6 space-y-6 custom-scrollbar relative z-0" style={{ backgroundImage: 'url("https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-dark-pattern-thumbnail.jpg")', backgroundSize: '400px' }}>
+              <div className="absolute inset-0 bg-gray-50/90 dark:bg-gray-950/95 pointer-events-none"></div>
+              <div className="relative z-10 space-y-6">
+                {currentMessages.length > 0 ? (
+                  currentMessages.map((msg, idx) => {
+                    const isMe = msg.sender_id === currentUser?.id;
+                    const showDate = idx === 0 || new Date(currentMessages[idx-1].timestamp).toDateString() !== new Date(msg.timestamp).toDateString();
+                    
+                    return (
+                      <div key={msg.id} className="space-y-4">
+                        {showDate && (
+                          <div className="flex justify-center my-4">
+                            <span className="px-3 py-1 bg-white dark:bg-gray-800 rounded-full text-[9px] font-bold text-gray-400 dark:text-gray-500 tracking-wider shadow-sm border border-gray-100 dark:border-gray-700">
+                              {new Date(msg.timestamp).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
+                        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
+                          <div className={`max-w-[85%] group ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                            <div className={`p-3 px-4 rounded-2xl shadow-md relative ${
+                              isMe 
+                                ? 'bg-[#005c4b] text-white rounded-tr-none' 
+                                : 'bg-white dark:bg-[#202c33] text-gray-800 dark:text-[#e9edef] border border-gray-100 dark:border-gray-700/30 rounded-tl-none'
+                            }`}>
+                              {/* Bubble Tail */}
+                              <div className={`absolute top-0 w-3 h-3 ${isMe ? '-right-1 bg-[#005c4b] transform rotate-45' : '-left-1 bg-white dark:bg-[#202c33] transform rotate-45'} -z-10`}></div>
+                              
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                              <div className="flex items-center justify-end space-x-1 mt-1">
+                                <span className={`text-[9px] opacity-70 ${isMe ? 'text-white' : 'text-gray-400'}`}>
+                                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                                {isMe && <CheckCheck className="w-3 h-3 text-white/70" />}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center opacity-30 py-20">
+                    <MessageSquare className="w-12 h-12 mb-4" />
+                    <p className="text-sm font-medium">Send a message to coordinate with the recycler partner</p>
                   </div>
-                );
-              })}
+                )}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
 
-            <form onSubmit={handleSend} className="p-6 border-t dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
-              <div className="relative flex items-center">
+            {/* Input Area */}
+            <form onSubmit={handleSend} className="p-4 sm:p-6 border-t dark:border-gray-800 bg-white dark:bg-gray-900 z-10">
+              <div className="relative flex items-center bg-gray-50 dark:bg-gray-800/50 rounded-[1.5rem] border border-gray-200 dark:border-gray-700 px-2 group focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 outline-none transition-all">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full pl-6 pr-14 py-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+                  placeholder="Message recycler partner..."
+                  className="flex-grow bg-transparent px-4 py-4 dark:text-white outline-none text-sm"
                 />
                 <button
                   type="submit"
                   disabled={!input.trim()}
-                  className="absolute right-2 p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 disabled:opacity-50 transition-all shadow-lg shadow-emerald-500/20"
+                  className="p-3 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 active:scale-95 disabled:opacity-50 disabled:active:scale-100 transition-all shadow-lg shadow-emerald-500/20"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -137,12 +225,14 @@ const ChatWithRecycler = () => {
             </form>
           </>
         ) : (
-          <div className="flex-grow flex flex-col items-center justify-center text-gray-400 p-10 text-center">
-            <div className="w-20 h-20 bg-gray-50 dark:bg-gray-900/50 rounded-3xl flex items-center justify-center mb-6">
-              <MessageSquare className="w-10 h-10 opacity-20" />
+          <div className="flex-grow flex flex-col items-center justify-center p-10 text-center bg-gray-50/30 dark:bg-gray-950/30">
+            <div className="w-24 h-24 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-[2rem] flex items-center justify-center mb-6 animate-pulse">
+              <MessageSquare className="w-10 h-10 text-emerald-500 opacity-60" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Your Messages</h3>
-            <p className="max-w-xs">Select an active pickup from the list to start chatting with the recycler partner.</p>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Connect with Recyclers</h3>
+            <p className="max-w-xs text-sm text-gray-500 leading-relaxed">
+              Select an active pickup to start a direct secure chat with the recycler partner assigned to your campus.
+            </p>
           </div>
         )}
       </div>

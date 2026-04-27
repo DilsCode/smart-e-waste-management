@@ -205,6 +205,38 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           // Seed Settings
           const settingsRef = doc(db, 'settings', 'config');
           batch.set(settingsRef, initialState.settings);
+
+          // Seed some initial messages
+          const welcomeMessageId = Math.random().toString(36).substr(2, 9);
+          batch.set(doc(db, 'messages', welcomeMessageId), {
+            id: welcomeMessageId,
+            pickup_id: 'general_coordination',
+            sender_id: 'system',
+            content: 'This is the General Campus Coordination channel. Use this for general queries or scheduling updates.',
+            timestamp: new Date().toISOString()
+          });
+
+          // Seed a sample previous chat
+          const sampleMsg1 = Math.random().toString(36).substr(2, 9);
+          const sampleMsg2 = Math.random().toString(36).substr(2, 9);
+          
+          batch.set(doc(db, 'messages', sampleMsg1), {
+            id: sampleMsg1,
+            pickup_id: 'general_coordination',
+            sender_id: 'recycler_1',
+            sender_role: 'recycler',
+            content: 'Hello, I will be arriving at 2 PM today for the library pickup.',
+            timestamp: new Date(Date.now() - 3600000).toISOString()
+          });
+
+          batch.set(doc(db, 'messages', sampleMsg2), {
+            id: sampleMsg2,
+            pickup_id: 'general_coordination',
+            sender_id: 'staff_1',
+            sender_role: 'staff',
+            content: 'Great, the bins are ready at the south entrance.',
+            timestamp: new Date(Date.now() - 1800000).toISOString()
+          });
           
           await batch.commit();
           console.log("Seeding completed successfully.");
@@ -493,7 +525,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           estimated_payment: estimatedPayment,
           status: 'pending',
           completed_at: null,
-          requester_id: null,
+          requester_id: payload.userId,
           notes: 'Bin full, auto-pickup requested.',
           items: []
         });
